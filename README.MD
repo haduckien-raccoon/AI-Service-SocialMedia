@@ -68,25 +68,25 @@ pip install -r requirements.txt
 
 ```bash
 uvicorn main:app --reload
-uvicorn main:app --reload --host 0.0.0.0 --port 8081
+uvicorn main:app --reload --host 0.0.0.0 --port 8082 
 ```
 
 Server sẽ chạy tại:
 
 ```bash
-http://127.0.0.1:8081
+http://127.0.0.1:8082 
 ```
 
 Swagger Docs:
 
 ```bash
-http://127.0.0.1:8081/docs
+http://127.0.0.1:8082 /docs
 ```
 
 Redoc:
 
 ```bash
-http://127.0.0.1:8081/redoc
+http://127.0.0.1:8082 /redoc
 ```
 
 ---
@@ -148,7 +148,7 @@ POST /predict
 ## Vietnamese
 
 ```bash
-curl -X POST "http://127.0.0.1:8081/predict" \
+curl -X POST "http://127.0.0.1:8082 /predict" \
 -H "Content-Type: application/json" \
 -d '{"text":"mày ngu quá","lang":"vi"}'
 ```
@@ -156,7 +156,7 @@ curl -X POST "http://127.0.0.1:8081/predict" \
 ## English
 
 ```bash
-curl -X POST "http://127.0.0.1:8081/predict" \
+curl -X POST "http://127.0.0.1:8082 /predict" \
 -H "Content-Type: application/json" \
 -d '{"text":"you are stupid","lang":"en"}'
 ```
@@ -208,7 +208,11 @@ docker build -t toxic-api .
 ## Run container
 
 ```bash
-docker run -p 8081:8081 toxic-api
+docker run -p 8082 :8082  toxic-api
+docker run -d \
+  --name ai-service \
+  -p 8082 :8082  \
+  toxic-api
 ```
 
 ---
