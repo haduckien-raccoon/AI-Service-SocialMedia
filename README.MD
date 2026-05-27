@@ -1,129 +1,132 @@
 # AI Toxic Detection Service
 
-API phát hiện nội dung độc hại (toxic text detection) hỗ trợ tiếng Việt và tiếng Anh bằng `FastAPI`.
+Service FastAPI dùng để chấm điểm toxic cho văn bản tiếng Việt và tiếng Anh. Repo này được chuẩn hóa để chạy local, chạy trên VM bằng Docker Compose, và deploy cloud bằng Docker image/root `Dockerfile`.
 
-## Cấu trúc thư mục
+## Runtime Overview
 
-```bash
-ai_services/
-├── docker/
-├── models/
-│   ├── nlp_toxic_model_vi_final.pkl
-│   └── nlp_toxic_model_en_final.pkl
-├── main.py
-├── requirements.txt
-├── README.MD
-├── venv/
-└── __pycache__/
-```
+- App entrypoint: `main.py`
+- Main endpoint: `POST /predict`
+- Health endpoint: `GET /health`
+- Runtime models:
+  - `models/nlp_toxic_model_vi_final.pkl`
+  - `models/nlp_toxic_model_en_final.pkl`
 
----
+Docker image chỉ đóng gói các file runtime cần thiết. CSV train/test, notebook và artifact không dùng khi inference sẽ không đi vào image.
 
-# Yêu cầu môi trường
+## Local Python Run
 
-* Python >= 3.9
-* pip
-* virtualenv (khuyến nghị)
+Yêu cầu:
 
----
+- Python 3.12
+- `pip`
 
-# Cài đặt
-
-## 1. Clone project
+Cài dependencies:
 
 ```bash
-git clone <your-repository>
-cd ai_services
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
----
-
-## 2. Tạo virtual environment
-
-### Linux / macOS
+Chạy server:
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
+uvicorn main:app --host 0.0.0.0 --port 8082 --reload
 ```
 
-### Windows
+Truy cập:
+
+- API base: `http://127.0.0.1:8082`
+- Swagger: `http://127.0.0.1:8082/docs`
+- ReDoc: `http://127.0.0.1:8082/redoc`
+
+## Docker Compose
+
+Docker Compose là cách chạy được khuyến nghị cho local và VM vì build, run, port mapping và restart policy đều nằm trong một file cấu hình.
+
+Chạy service:
 
 ```bash
-python -m venv venv
-venv\Scripts\activate
+docker compose up --build
 ```
 
----
-
-## 3. Cài dependencies
+Chạy background:
 
 ```bash
-pip install -r requirements.txt
+docker compose up --build -d
 ```
 
----
-
-# Chạy server
+Xem logs:
 
 ```bash
-uvicorn main:app --reload
-uvicorn main:app --reload --host 0.0.0.0 --port 8082 
+docker compose logs -f api
 ```
 
-Server sẽ chạy tại:
+Dừng service:
 
 ```bash
-http://127.0.0.1:8082 
+docker compose down
 ```
 
-Swagger Docs:
+Tùy chỉnh port bằng file `.env` ở root repo:
 
 ```bash
-http://127.0.0.1:8082 /docs
+PORT=8082
+HOST_PORT=8082
 ```
 
-Redoc:
+`PORT` là port app lắng nghe bên trong container. `HOST_PORT` là port máy host expose ra ngoài. File `.env.example` là template để team thống nhất cấu hình.
+
+## Docker CLI
+
+Build image từ root repo:
 
 ```bash
-http://127.0.0.1:8082 /redoc
+docker build -t ai-service-socialmedia:latest .
 ```
 
----
+Run local với port mặc định:
 
-# API Usage
-
-## Endpoint
-
-```http
-POST /predict
+```bash
+docker run --rm -p 8082:8082 ai-service-socialmedia:latest
 ```
 
----
+Run theo kiểu cloud với `PORT` inject từ platform:
 
-## Request Body
+```bash
+docker run --rm -e PORT=8000 -p 8000:8000 ai-service-socialmedia:latest
+```
 
-### Tiếng Việt
+## API Verification
+
+Kiểm tra health endpoint:
+
+```bash
+curl http://127.0.0.1:8082/health
+```
+
+Kết quả mong đợi:
 
 ```json
-{
-  "text": "mày ngu quá",
-  "lang": "vi"
-}
+{"status":"ok"}
 ```
 
-### Tiếng Anh
+Kiểm tra model tiếng Việt:
 
-```json
-{
-  "text": "you are stupid",
-  "lang": "en"
-}
+```bash
+curl -X POST "http://127.0.0.1:8082/predict" \
+  -H "Content-Type: application/json" \
+  -d "{\"text\":\"mày ngu quá\",\"lang\":\"vi\"}"
 ```
 
----
+Kiểm tra model tiếng Anh:
 
-# Response
+```bash
+curl -X POST "http://127.0.0.1:8082/predict" \
+  -H "Content-Type: application/json" \
+  -d "{\"text\":\"you are stupid\",\"lang\":\"en\"}"
+```
+
+Response mẫu:
 
 ```json
 {
@@ -132,105 +135,23 @@ POST /predict
 }
 ```
 
----
+`score` càng gần `1` thì nội dung càng toxic. `lang` mặc định là `vi` nếu request không truyền.
 
-# Ý nghĩa kết quả
+## Cloud Deployment Notes
 
-| Score | Ý nghĩa                  |
-| ----- | ------------------------ |
-| gần 0 | Nội dung an toàn         |
-| gần 1 | Nội dung độc hại / toxic |
+- Dockerfile canonical nằm ở root repo.
+- `compose.yaml` dùng cho local và VM chạy Docker Compose. Với PaaS/container platform, ưu tiên deploy bằng image hoặc root `Dockerfile` tùy provider.
+- Container sẽ đọc `PORT` nếu platform inject biến môi trường này. Nếu không có, app dùng mặc định `8082`.
+- Health probe nên trỏ vào `GET /health`.
+- Build context đã được tối giản bằng `.dockerignore` để tránh đẩy `venv/`, dữ liệu train/test và artifact không cần thiết lên builder.
 
----
+## Troubleshooting
 
-# Chạy bằng cURL
-
-## Vietnamese
-
-```bash
-curl -X POST "http://127.0.0.1:8082 /predict" \
--H "Content-Type: application/json" \
--d '{"text":"mày ngu quá","lang":"vi"}'
-```
-
-## English
-
-```bash
-curl -X POST "http://127.0.0.1:8082 /predict" \
--H "Content-Type: application/json" \
--d '{"text":"you are stupid","lang":"en"}'
-```
-
----
-
-# Source Code
-
-## main.py
-
-```python
-from fastapi import FastAPI
-import joblib
-
-app = FastAPI()
-
-model_vi = joblib.load("models/nlp_toxic_model_vi_final.pkl")
-model_en = joblib.load("models/nlp_toxic_model_en_final.pkl")
-
-
-@app.post("/predict")
-def predict(data: dict):
-    text = data["text"]
-    lang = data.get("lang", "vi")
-
-    if lang == "en":
-        model = model_en
-    else:
-        model = model_vi
-
-    proba = model.predict_proba([text])[0][1]
-
-    return {
-        "score": float(proba),
-        "lang": lang
-    }
-```
-
----
-
-# Docker (tuỳ chọn)
-
-## Build image
-
-```bash
-docker build -t toxic-api .
-```
-
-## Run container
-
-```bash
-docker run -p 8082 :8082  toxic-api
-docker run -d \
-  --name ai-service \
-  -p 8082 :8082  \
-  toxic-api
-```
-
----
-
-# Ghi chú
-
-* `lang="vi"` là mặc định.
-* Model được load khi server khởi động.
-* API trả về xác suất toxic (`score`) thay vì label nhị phân.
-* Các model `.pkl` cần tồn tại trong thư mục `models/`.
-
----
-
-# Author
-
-Developed using:
-
-* Python
-* FastAPI
-* scikit-learn
-* joblib
+- `FileNotFoundError` khi start container:
+  - Kiểm tra hai file model final còn tồn tại trong `models/`.
+- Container chạy nhưng không truy cập được:
+  - Kiểm tra mapping port host/container và giá trị `PORT`.
+- Docker Compose không đọc đúng port:
+  - Kiểm tra file `.env`, giá trị `HOST_PORT`, và chạy lại `docker compose up --build`.
+- Docker build quá chậm hoặc context quá lớn:
+  - Kiểm tra `.dockerignore` có còn loại trừ `venv/`, `__pycache__/`, CSV và notebook hay không.

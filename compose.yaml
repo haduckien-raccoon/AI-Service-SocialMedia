@@ -1,0 +1,13 @@
+name: ai-service-socialmedia
+
+services:
+  api:
+    image: ai-service-socialmedia:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      PORT: ${PORT:-8082}
+    ports:
+      - "${HOST_PORT:-8082}:${PORT:-8082}"
+    restart: unless-stopped

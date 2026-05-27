@@ -9,6 +9,14 @@ model_en = joblib.load("models/nlp_toxic_model_en_final.pkl")
 
 
 # ==========================================
+# HEALTH
+# ==========================================
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
+# ==========================================
 # PREDICT
 # ==========================================
 @app.post("/predict")
